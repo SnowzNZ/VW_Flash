@@ -148,8 +148,7 @@ def locate_ecm3_with_asw1(
         address = struct.unpack(
             "<I",
             data_binary_ecm3_addresses[
-                checksum_address_location
-                + (i * 4) : checksum_address_location
+                checksum_address_location + (i * 4) : checksum_address_location
                 + 4
                 + (i * 4)
             ],

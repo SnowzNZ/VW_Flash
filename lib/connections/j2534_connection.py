@@ -40,7 +40,6 @@ class J2534Connection(BaseConnection):
     def __init__(
         self, windll, rxid, txid, name=None, debug=False, st_min=None, *args, **kwargs
     ):
-
         BaseConnection.__init__(self, name)
         self.txid = txid
         self.rxid = rxid
@@ -162,9 +161,7 @@ class J2534Connection(BaseConnection):
         return self.opened
 
     def rxthread_task(self):
-
         while not self.exit_requested:
-
             try:
                 _result, data, _numMessages = self.interface.PassThruReadMsgs(
                     self.channelID, self.protocol.value, 1, 1

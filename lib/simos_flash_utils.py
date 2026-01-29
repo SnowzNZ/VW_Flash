@@ -268,7 +268,6 @@ def checksum_ecm3(
 
 def lzss_compress(input_blocks, outfile=None):
     for filename in input_blocks:
-
         if outfile:
             lzss.main(inputfile=filename, outputfile=filename + ".compressed")
         else:

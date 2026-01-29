@@ -25,8 +25,8 @@ def validate(
     )[0]
 
     # Grab the data before and after the checksum block
-    checksum_data = data_binary[0:checksum_location] + (
-        data_binary[checksum_location + 0xA :]
+    checksum_data = (
+        data_binary[0:checksum_location] + (data_binary[checksum_location + 0xA :])
     )
 
     checksum = 0

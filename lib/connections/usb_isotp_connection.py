@@ -19,9 +19,8 @@ class USBISOTPConnection(BaseConnection):
         name=None,
         dq3xx_hack=False,
         *args,
-        **kwargs
+        **kwargs,
     ):
-
         BaseConnection.__init__(self, name)
         self.txid = txid
         self.rxid = rxid
@@ -53,7 +52,7 @@ class USBISOTPConnection(BaseConnection):
 
     def send_command_packet(self, cmd, payload):
         cmd_payload = (
-            b"\xF1"
+            b"\xf1"
             + cmd
             + self.rxid.to_bytes(2, "little")
             + self.txid.to_bytes(2, "little")
@@ -146,7 +145,7 @@ class USBISOTPConnection(BaseConnection):
         self.logger.debug("RXID: " + str(self.rxid.to_bytes(2, "little")))
 
         header = (
-            b"\xF1\x00"
+            b"\xf1\x00"
             + self.rxid.to_bytes(2, "little")
             + self.txid.to_bytes(2, "little")
             + len(payload).to_bytes(2, "little")

@@ -44,9 +44,7 @@ class BinFileHandler:
                                     input_blocks[filename].block_number
                                 ][0] : self.flash_info.software_version_location[
                                     input_blocks[filename].block_number
-                                ][
-                                    1
-                                ]
+                                ][1]
                             ]
                             .decode()
                         ),
@@ -57,9 +55,7 @@ class BinFileHandler:
                                     input_blocks[filename].block_number
                                 ][0] : self.flash_info.box_code_location[
                                     input_blocks[filename].block_number
-                                ][
-                                    1
-                                ]
+                                ][1]
                             ]
                             .decode()
                         ),
@@ -86,9 +82,7 @@ class BinFileHandler:
                                 input_blocks[filename].block_number
                             ][0] : self.flash_info.software_version_location[
                                 input_blocks[filename].block_number
-                            ][
-                                1
-                            ]
+                            ][1]
                         ]
                         .decode()
                     )
