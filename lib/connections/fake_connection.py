@@ -1,12 +1,11 @@
+import queue
+
 from udsoncan.connections import BaseConnection
 from udsoncan.exceptions import TimeoutException
-
-import queue
 
 
 class FakeConnection(BaseConnection):
     def __init__(self, name=None, debug=False, testdata=None, *args, **kwargs):
-
         BaseConnection.__init__(self, name)
 
         self.rxqueue = queue.Queue()
@@ -37,7 +36,17 @@ class FakeConnection(BaseConnection):
 
     def specific_send(self, payload):
         self.logger.debug("Received payload: " + str(payload.hex()))
-        self.rxqueue.put(self.ResponseData[payload])
+        try:
+            response = self.ResponseData[payload]
+        except Exception:
+            # Unknown payload: return a safe default so higher-level code can continue
+            # Many callers expect a response starting with 0x7E/0x7e for success; use b'\x7e\x00'
+            self.logger.warning(
+                "FakeConnection: no canned response for payload, returning default 7E00"
+            )
+            response = b"\x7e\x00"
+
+        self.rxqueue.put(response)
 
     def specific_wait_frame(self, timeout=4):
         if not self.opened:

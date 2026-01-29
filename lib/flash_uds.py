@@ -1,18 +1,14 @@
 import logging
 import time
-import udsoncan
-from . import constants
-from . import dtc_handler
-from .connections.connection_setup import connection_setup
-from sa2_seed_key.sa2_seed_key import Sa2SeedKey
 from typing import Optional
-from udsoncan.client import Client
-from udsoncan.client import Routine
-from udsoncan import configs
-from udsoncan import exceptions
-from udsoncan import services
-from udsoncan import Dtc
 
+import udsoncan
+from sa2_seed_key.sa2_seed_key import Sa2SeedKey
+from udsoncan import Dtc, configs, exceptions, services
+from udsoncan.client import Client, Routine
+
+from . import constants, dtc_handler
+from .connections.connection_setup import connection_setup
 from .workshop_code import WorkshopCodeCodec
 
 logger = logging.getLogger("SimosFlashHistory")
@@ -355,7 +351,6 @@ def flash_blocks(
     )
 
     def send_obd(data):
-
         conn2 = connection_setup(
             interface=interface, rxid=0x7E8, txid=0x700, interface_path=interface_path
         )
@@ -399,13 +394,13 @@ def flash_blocks(
             client.config["data_identifiers"] = {}
             for data_record in constants.data_records:
                 if data_record.parse_type == 0:
-                    client.config["data_identifiers"][
-                        data_record.address
-                    ] = GenericStringCodec
+                    client.config["data_identifiers"][data_record.address] = (
+                        GenericStringCodec
+                    )
                 else:
-                    client.config["data_identifiers"][
-                        data_record.address
-                    ] = GenericBytesCodec
+                    client.config["data_identifiers"][data_record.address] = (
+                        GenericBytesCodec
+                    )
 
             client.config["data_identifiers"][0xF15A] = GenericBytesCodec
 
@@ -640,6 +635,38 @@ def read_dtcs(
         return dtc_handler.dtcs_to_human(response.service_data.dtcs)
 
 
+def clear_dtcs(
+    flash_info: constants.FlashInfo, interface="CAN", callback=None, interface_path=None
+):
+    def send_obd(data):
+        conn = connection_setup(
+            interface=interface, rxid=0x7E8, txid=0x700, interface_path=interface_path
+        )
+        conn.open()
+        conn.send(data)
+        conn.wait_frame()
+        conn.wait_frame()
+        conn.close()
+
+    if callback:
+        callback(
+            flasher_step="CLEARING",
+            flasher_status="Clearing DTCs...",
+            flasher_progress=50,
+        )
+
+    detailedLogger.info("Sending 0x4 Clear Emissions DTCs over OBD-2")
+    send_obd(bytes([0x4]))
+
+    if callback:
+        callback(
+            flasher_step="DONE",
+            flasher_status="DTCs cleared successfully",
+            flasher_progress=100,
+        )
+    detailedLogger.info("DTCs cleared successfully")
+
+
 def read_ecu_data(
     flash_info: constants.FlashInfo, interface="CAN", callback=None, interface_path=None
 ):
@@ -678,17 +705,17 @@ def read_ecu_data(
         client.config["data_identifiers"] = {}
         for data_record in constants.data_records:
             if data_record.parse_type == 0:
-                client.config["data_identifiers"][
-                    data_record.address
-                ] = GenericStringCodec
+                client.config["data_identifiers"][data_record.address] = (
+                    GenericStringCodec
+                )
             elif data_record.parse_type == 2:
-                client.config["data_identifiers"][
-                    data_record.address
-                ] = WorkshopCodeCodec
+                client.config["data_identifiers"][data_record.address] = (
+                    WorkshopCodeCodec
+                )
             else:
-                client.config["data_identifiers"][
-                    data_record.address
-                ] = GenericBytesCodec
+                client.config["data_identifiers"][data_record.address] = (
+                    GenericBytesCodec
+                )
 
         client.config["data_identifiers"][0xF15A] = GenericBytesCodec
 

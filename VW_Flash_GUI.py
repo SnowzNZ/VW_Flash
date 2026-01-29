@@ -1,39 +1,41 @@
 import glob
-from pathlib import Path
-import wx
-import os.path as path
-import logging
 import json
-import threading
+import logging
+import os.path as path
 import sys
+import threading
+from datetime import datetime
+from pathlib import Path
+from zipfile import ZipFile
+
 import serial
 import serial.tools.list_ports
+import wx
 
-from zipfile import ZipFile
-from datetime import datetime
-
-from lib import extract_flash, haldex_binfile
-from lib import binfile
-from lib import flash_uds
-from lib import simos_flash_utils
-from lib import dsg_flash_utils
-from lib import dq381_flash_utils
-from lib import haldex_flash_utils
-from lib import constants
-from lib import simos_hsl
-
+from lib import (
+    binfile,
+    constants,
+    dq381_flash_utils,
+    dsg_flash_utils,
+    extract_flash,
+    flash_uds,
+    haldex_binfile,
+    haldex_flash_utils,
+    simos_flash_utils,
+    simos_hsl,
+)
 from lib.modules import (
+    dq250mqb,
+    dq381,
+    haldex4motion,
     simos8,
     simos10,
     simos12,
-    simos122,
-    simos18,
-    simos1810,
-    simos184,
-    dq250mqb,
-    dq381,
     simos16,
-    haldex4motion,
+    simos18,
+    simos122,
+    simos184,
+    simos1810,
 )
 
 DEFAULT_STMIN = 350000
@@ -318,12 +320,16 @@ class FlashPanel(wx.Panel):
         dtc_button = wx.Button(self, label="Read Trouble Codes")
         dtc_button.Bind(wx.EVT_BUTTON, self.on_read_dtcs)
 
+        clear_dtc_button = wx.Button(self, label="Clear Trouble Codes")
+        clear_dtc_button.Bind(wx.EVT_BUTTON, self.on_clear_dtcs)
+
         get_info_button = wx.Button(self, label="Get Ecu Info")
         get_info_button.Bind(wx.EVT_BUTTON, self.on_get_info)
 
         actions_sizer.Add(self.module_choice, 0, wx.LEFT, 5)
         actions_sizer.Add(get_info_button, 0, wx.LEFT | wx.RIGHT, 5)
         actions_sizer.Add(dtc_button, 0, wx.RIGHT, 5)
+        actions_sizer.Add(clear_dtc_button, 0, wx.RIGHT, 5)
 
         selections_sizer.Add(self.action_choice, 0, wx.EXPAND | wx.ALL, 5)
         selections_sizer.Add(flash_button, 0, wx.EXPAND | wx.ALL, 5)
@@ -386,6 +392,16 @@ class FlashPanel(wx.Panel):
             self.feedback_text.AppendText(str(dtc) + " : " + dtcs[dtc] + "\n")
             for dtc in dtcs
         ]
+
+    def on_clear_dtcs(self, event):
+        (interface, interface_path) = split_interface_name(self.options["interface"])
+        flash_uds.clear_dtcs(
+            self.flash_info,
+            interface=interface,
+            callback=self.update_callback,
+            interface_path=interface_path,
+        )
+        self.feedback_text.AppendText("DTCs cleared successfully\n")
 
     def flash_unlock(self, selected_file):
         if (
@@ -734,9 +750,7 @@ class FlashPanel(wx.Panel):
                         self.input_blocks[filename].block_number
                     ][0] : self.flash_info.box_code_location[
                         self.input_blocks[filename].block_number
-                    ][
-                        1
-                    ]
+                    ][1]
                 ]
                 .decode()
             )
@@ -995,7 +1009,6 @@ class VW_Flash_Frame(wx.Frame):
         return
 
     def on_stop_logger(self, event):
-
         if self.hsl_logger is not None:
             self.hsl_logger.stop()
             self.hsl_logger = None

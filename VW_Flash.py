@@ -1,42 +1,40 @@
-from pathlib import Path
-import tqdm
+import argparse
 import logging
 import logging.config
-import argparse
+import shutil
 import sys
 from os import path
+from pathlib import Path
 
-from lib import haldex_binfile
-from lib.extract_flash import extract_flash_from_frf
-from lib.constants import (
-    BlockData,
-    PreparedBlockData,
-    FlashInfo,
-)
+import tqdm
+
 import lib.binfile as binfile
-import lib.simos_flash_utils as simos_flash_utils
 import lib.dq381_flash_utils as dq381_flash_utils
 import lib.dsg_flash_utils as dsg_flash_utils
-import lib.haldex_flash_utils as haldex_flash_utils
-
 import lib.flash_uds as flash_uds
-
+import lib.haldex_flash_utils as haldex_flash_utils
+import lib.simos_flash_utils as simos_flash_utils
+from lib import haldex_binfile
+from lib.constants import (
+    BlockData,
+    FlashInfo,
+    PreparedBlockData,
+)
+from lib.extract_flash import extract_flash_from_frf
 from lib.modules import (
+    dq250mqb,
+    dq381,
+    haldex4motion,
     simos8,
     simos10,
     simos12,
-    simos122,
-    simos18,
-    simos1810,
-    simos184,
-    dq250mqb,
-    dq381,
     simos16,
-    haldex4motion,
+    simos18,
+    simos122,
+    simos184,
+    simos1810,
 )
-
 from lib.simos_hsl import hsl_logger
-import shutil
 
 # Get an instance of logger, which we'll pull from the config file
 logger = logging.getLogger("VWFlash")
@@ -87,6 +85,7 @@ parser.add_argument(
         "flash_unlock",
         "get_ecu_info",
         "get_dtcs",
+        "clear_dtcs",
         "log",
     ],
     required=True,
@@ -459,10 +458,27 @@ elif args.action == "get_dtcs":
 
     t.close()
 
+elif args.action == "clear_dtcs":
+    t = tqdm.tqdm(
+        total=100,
+        colour="green",
+        ncols=round(shutil.get_terminal_size().columns * 0.75),
+    )
+
+    def wrap_callback_function(flasher_step, flasher_status, flasher_progress):
+        callback_function(t, flasher_step, flasher_status, float(flasher_progress))
+
+    flash_uds.clear_dtcs(
+        flash_info, interface=args.interface, callback=wrap_callback_function
+    )
+
+    t.close()
+
 elif args.action == "log":
     logger = hsl_logger(
         runServer=False,
-        interactive=True,
+        # Avoid starting interactive keyboard thread for TEST interface (no stdin)
+        interactive=(args.interface != "TEST"),
         mode=args.mode,
         level="INFO",
         path="./logs/",
@@ -470,7 +486,8 @@ elif args.action == "log":
         interface=args.interface,
         singleCSV=False,
         interfacePath=None,
-        displayGauges=True,
+        # Disable gauges when using the TEST interface (fake responses can be incomplete)
+        displayGauges=(args.interface != "TEST"),
     )
 
     logger.startLogger()

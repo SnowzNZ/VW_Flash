@@ -1,18 +1,19 @@
 import ctypes
+import glob
+import logging
+import os
+import struct
 from ctypes import (
-    Structure,
-    WINFUNCTYPE,
     POINTER,
-    c_long,
-    c_void_p,
-    c_ulong,
+    WINFUNCTYPE,
+    Structure,
     byref,
+    c_long,
+    c_ulong,
+    c_void_p,
     pointer,
 )
-
 from enum import Enum
-
-import logging
 
 
 class PASSTHRU_MSG(Structure):
@@ -50,7 +51,6 @@ class J2534:
     dllPassThruIoctl = None
 
     def __init__(self, windll, rxid, txid):
-
         global dllPassThruOpen
         global dllPassThruClose
         global dllPassThruConnect
@@ -64,7 +64,12 @@ class J2534:
         global dllPassThruStartMsgFilter
         global dllPassThruIoctl
 
-        self.hDLL = ctypes.cdll.LoadLibrary(windll)
+        # Resolve a DLL path that is compatible with the running Python bitness.
+        dll_path = self._find_compatible_j2534_dll(windll)
+        self.logger = logging.getLogger()
+
+        self.logger.debug(f"Loading J2534 DLL: {dll_path}")
+        self.hDLL = ctypes.cdll.LoadLibrary(dll_path)
         self.rxid = rxid.to_bytes(4, "big")
         self.txid = txid.to_bytes(4, "big")
 
@@ -218,6 +223,89 @@ class J2534:
             ("PassThruIoctl", self.hDLL), dllPassThruIoctlParams
         )
 
+    def _is_pe_64bit(self, filepath: str) -> bool:
+        """Return True if the PE file at filepath is 64-bit (IMAGE_FILE_MACHINE_AMD64)."""
+        try:
+            with open(filepath, "rb") as f:
+                data = f.read(0x200)
+                if len(data) < 0x40:
+                    return False
+                e_lfanew = struct.unpack_from("<I", data, 0x3C)[0]
+                # Ensure we have enough bytes to read machine
+                f.seek(e_lfanew + 4)
+                machine_bytes = f.read(2)
+                if len(machine_bytes) < 2:
+                    return False
+                machine = struct.unpack_from("<H", machine_bytes)[0]
+                # IMAGE_FILE_MACHINE_AMD64 == 0x8664
+                return machine == 0x8664
+        except Exception:
+            return False
+
+    def _find_compatible_j2534_dll(self, preferred_path: str) -> str:
+        """Find a J2534 DLL that matches the Python process bitness.
+
+        Order of resolution:
+        1. Environment variable J2534_DLL_PATH
+        2. preferred_path passed into this function
+        3. search common Program Files locations for op20pt*.dll
+
+        Raises RuntimeError with guidance if no compatible DLL is found.
+        """
+        desired_64 = struct.calcsize("P") * 8 == 64
+
+        # candidate sources
+        candidates = []
+        env_path = os.environ.get("J2534_DLL_PATH")
+        if env_path:
+            candidates.append(env_path)
+
+        if preferred_path:
+            candidates.append(preferred_path)
+
+        # Common vendor locations to search for OpenPort drivers
+        common_roots = [
+            r"C:\Program Files\OpenECU",
+            r"C:\Program Files (x86)\OpenECU",
+            r"C:\Program Files",
+            r"C:\Program Files (x86)",
+        ]
+
+        for root in common_roots:
+            try:
+                pattern = os.path.join(root, "**", "op20pt*.dll")
+                candidates.extend(glob.glob(pattern, recursive=True))
+            except Exception:
+                continue
+
+        # Filter unique candidates and check bitness
+        seen = set()
+        for cand in candidates:
+            if not cand or cand in seen:
+                continue
+            seen.add(cand)
+            if not os.path.exists(cand):
+                continue
+            is64 = self._is_pe_64bit(cand)
+            if is64 == desired_64:
+                return cand
+
+        # Nothing matched exactly; if preferred exists and matches desired bitness, return it
+        if preferred_path and os.path.exists(preferred_path):
+            try:
+                if self._is_pe_64bit(preferred_path) == desired_64:
+                    return preferred_path
+            except Exception:
+                pass
+
+        # Construct helpful error
+        bit_txt = "64-bit" if desired_64 else "32-bit"
+        raise RuntimeError(
+            f"No compatible J2534 DLL found for {bit_txt} Python.\n"
+            f"Set the environment variable J2534_DLL_PATH to the full path of a compatible J2534 DLL,\n"
+            f"or install the vendor's {bit_txt} J2534 driver. Searched candidates: {list(seen)}"
+        )
+
     def PassThruOpen(self, pDeviceID=None):
         if not pDeviceID:
             pDeviceID = ctypes.c_ulong()
@@ -318,7 +406,6 @@ class J2534:
         return Error_ID(result), pFirmwareVersion, pDllVersion, pApiVersion
 
     def PassThruIoctl(self, Handle, IoctlID, ioctlInput=None, ioctlOutput=None):
-
         if ioctlInput is None:
             pInput = POINTER(c_ulong)()
         else:
@@ -349,7 +436,6 @@ class J2534:
         return Error_ID(result)
 
     def PassThruStartMsgFilter(self, ChannelID, protocol):
-
         # VW Testing
         # txID = bytes([0x00, 0x00, 0x07, 0xE0])
 
@@ -418,7 +504,6 @@ class J2534:
 
 
 class Error_ID(Enum):
-
     ERR_SUCCESS = 0x00
     STATUS_NOERROR = 0x00
     ERR_NOT_SUPPORTED = 0x01
@@ -450,7 +535,6 @@ class Error_ID(Enum):
 
 
 class Protocol_ID(Enum):
-
     J1850VPW = 1
     J1850PWM = 2
     ISO9141 = 3
